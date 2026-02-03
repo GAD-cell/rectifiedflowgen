@@ -1,8 +1,22 @@
 from torchmetrics.image.fid import FrechetInceptionDistance
 from torchvision import datasets, transforms
 import torch
-from torchcfm.utils import NeuralODE
+from torchdyn.core import NeuralODE
 import torch.nn.functional as F
+from torch.utils.data import Dataset
+
+class ReflowDataset(Dataset):
+    def __init__(self, pairs):
+        self.data = []
+        for z0_batch, z1_batch, y_batch in pairs:
+            for i in range(z0_batch.shape[0]):
+                self.data.append((z0_batch[i], z1_batch[i], y_batch[i]))
+                
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        return self.data[idx]
 
 def compute_fid_score(real_loader, gen_images, device):
     fid_metric = FrechetInceptionDistance(feature=2048).to(device)
@@ -16,14 +30,44 @@ def compute_fid_score(real_loader, gen_images, device):
     
     return fid_metric.compute().item()
 
+def compute_fid_score_rec(real_loader, gen_images, device):
+    fid_metric = FrechetInceptionDistance(feature=2048).to(device)
+    
+    for _,x_real, _ in real_loader:
+        x_real_uint8 = ((x_real * 0.5 + 0.5).clamp(0, 1) * 255).to(torch.uint8).to(device)
+        fid_metric.update(x_real_uint8, real=True)
+        
+    x_gen_uint8 = ((gen_images * 0.5 + 0.5).clamp(0, 1) * 255).to(torch.uint8).to(device)
+    fid_metric.update(x_gen_uint8, real=False)
+    
+    return fid_metric.compute().item()
+
+from tqdm import tqdm
+
 def build_memory_bank(loader, model_dino, device):
     bank = []
     transform_dino = transforms.Resize(224) 
     
     with torch.no_grad():
-        for x, _ in loader:
+        for x, _ in tqdm(loader, desc="Building Memory Bank", unit="batch"):
             x = x.to(device)
             x_norm = transform_dino(x * 0.5 + 0.5)
+            
+            feats = model_dino(x_norm)
+            feats = F.normalize(feats, dim=1)
+            bank.append(feats.cpu())
+            
+    return torch.cat(bank, dim=0).to(device)
+
+def build_memory_bank_rec(loader, model_dino, device):
+    bank = []
+    transform_dino = transforms.Resize(224) 
+    
+    with torch.no_grad():
+        for _, x, _ in tqdm(loader, desc="Building Memory Bank", unit="batch"):
+            x = x.to(device)
+            x_norm = transform_dino(x * 0.5 + 0.5)
+            
             feats = model_dino(x_norm)
             feats = F.normalize(feats, dim=1)
             bank.append(feats.cpu())
@@ -43,7 +87,7 @@ def compute_nn_distance(gen_images, memory_bank, model_dino, device):
         
     return max_sim.mean().item()
 
-def generate_images(net_model, num=1000, batch_size=100, steps=10, device="cuda"):
+def generate_images(net_model, num=1000, batch_size=100, device="cuda"):
     net_model.eval()
     node = NeuralODE(net_model, solver="euler")
     all_images = []
@@ -58,7 +102,7 @@ def generate_images(net_model, num=1000, batch_size=100, steps=10, device="cuda"
             
             t_span = torch.linspace(0, 1, 2).to(device)
 
-            traj = node.trajectory(z0, t_span=t_span, steps=steps)
+            traj = node.trajectory(z0, t_span=t_span)
             z1 = traj[-1]
             all_images.append(z1.cpu())
             

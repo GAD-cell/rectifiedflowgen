@@ -1,4 +1,6 @@
 torchcfm
 torch
 torchvision
+torchdyn
 tqdm
+torch-fidelity

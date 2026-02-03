@@ -4,7 +4,6 @@ from torch.utils.data import DataLoader
 from torchcfm.models.unet.unet import UNetModelWrapper
 from torchcfm.conditional_flow_matching import TargetConditionalFlowMatcher
 from tqdm import tqdm
-from utils import compute_fid_score, build_memory_bank, generate_images, compute_nn_distance
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 def main():
@@ -31,7 +30,7 @@ def main():
     optimizer = torch.optim.AdamW(net_model.parameters(), lr=1e-4)
     fm = TargetConditionalFlowMatcher(sigma=0.0)
 
-    num_epochs = 50
+    num_epochs = 10
 
     for epoch in range(num_epochs):
         net_model.train()
@@ -58,17 +57,6 @@ def main():
 
     torch.save(net_model.state_dict(), "model_1rf.pt")
     print("Model 1-Rectified saved")
-
-    dino = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14').to(device).eval()
-
-    bank = build_memory_bank(dataloader, dino, device)
-
-    images_generees = generate_images(net_model, num=1000)
-
-    fid = compute_fid_score(dataloader, images_generees, device)
-    similarity = compute_nn_distance(images_generees, bank, dino, device)
-
-    print(f"FID: {fid:.2f} | NN Similarity: {similarity:.4f}")
 
 if __name__ == '__main__':
     main()

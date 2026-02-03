@@ -3,23 +3,10 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import datasets, transforms
 from torchcfm.models.unet.unet import UNetModelWrapper
 from torchcfm.conditional_flow_matching import TargetConditionalFlowMatcher
-from torchcfm.utils import NeuralODE
+from torchdyn.core import NeuralODE
 from tqdm import tqdm
-
+from utils import ReflowDataset
 device = "cuda" if torch.cuda.is_available() else "cpu"
-
-class ReflowDataset(Dataset):
-    def __init__(self, pairs):
-        self.data = []
-        for z0_batch, z1_batch, y_batch in pairs:
-            for i in range(z0_batch.shape[0]):
-                self.data.append((z0_batch[i], z1_batch[i], y_batch[i]))
-                
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        return self.data[idx]
 
 def main():
     print(f"Reflow pipeline starting on {device}...")
@@ -36,7 +23,7 @@ def main():
     ).to(device)
 
     try:
-        net_model.load_state_dict(torch.load("model_1rf.pt", map_location=device))
+        net_model.load_state_dict(torch.load("model_2rf.pt", map_location=device))
         print("Modèle 1-RF loaded")
     except FileNotFoundError:
         print("Erreur: 'model_1rf.pt'")
@@ -65,6 +52,7 @@ def main():
             
             reflow_pairs.append((z0.cpu(), z1.cpu(), y.cpu()))
 
+    torch.save(reflow_pairs, "reflow_3_dataset.pt")
 
     reflow_dataset = ReflowDataset(reflow_pairs)
     reflow_loader = DataLoader(reflow_dataset, batch_size=128, shuffle=True, drop_last=True, num_workers=2)
@@ -72,7 +60,7 @@ def main():
     optimizer = torch.optim.AdamW(net_model.parameters(), lr=5e-5) 
     fm = TargetConditionalFlowMatcher(sigma=0.0)
 
-    num_epochs_reflow = 50
+    num_epochs_reflow = 5
 
     print("Training 2-Rectified Flow...")
 
