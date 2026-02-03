@@ -107,3 +107,65 @@ def generate_images(net_model, num=1000, batch_size=100, device="cuda"):
             all_images.append(z1.cpu())
             
     return torch.cat(all_images, dim=0)
+
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from torchvision import transforms
+
+def visualize_memorization(gen_images, memory_bank, real_dataset, model_dino, device, num_samples=5, save_path="memorization_check.png"):
+    model_dino.eval()
+    transform_dino = transforms.Resize(224)
+
+    actual_num = min(num_samples, len(gen_images))
+    indices_gen = torch.randperm(len(gen_images))[:actual_num]
+    selected_gen = gen_images[indices_gen].to(device) # [N, 3, 32, 32]
+    
+
+    with torch.no_grad():
+        x_gen_norm = transform_dino(selected_gen * 0.5 + 0.5) 
+        gen_feats = model_dino(x_gen_norm)
+        gen_feats = F.normalize(gen_feats, dim=1) # [N, 384]
+
+        sim_matrix = torch.mm(gen_feats, memory_bank.T)
+        best_sims, best_indices = torch.max(sim_matrix, dim=1)
+
+    fig, axes = plt.subplots(actual_num, 2, figsize=(6, 3 * actual_num))
+    if actual_num == 1: axes = [axes] 
+    
+    for i in range(actual_num):
+
+        img_gen = selected_gen[i].cpu().permute(1, 2, 0).numpy()
+        img_gen = (img_gen * 0.5 + 0.5).clip(0, 1)
+        
+        ax_gen = axes[i][0] if actual_num > 1 else axes[0]
+        ax_gen.imshow(img_gen)
+        ax_gen.set_title("Générée (2-RF)")
+        ax_gen.axis('off')
+
+        idx_real = best_indices[i].item()
+        item = real_dataset[idx_real]
+
+        if isinstance(item, tuple):
+            if len(item) == 3: 
+                img_real_tensor = item[1] 
+            else:
+                img_real_tensor = item[0]
+        else:
+            img_real_tensor = item
+
+        img_real = img_real_tensor.permute(1, 2, 0).numpy()
+        img_real = (img_real * 0.5 + 0.5).clip(0, 1)
+        
+        ax_real = axes[i][1] if actual_num > 1 else axes[1]
+        ax_real.imshow(img_real)
+        score = best_sims[i].item()
+        
+        color = 'red' if score > 0.95 else 'green'
+        ax_real.set_title(f"Voisin Réel\nSim: {score:.4f}", color=color, fontweight='bold')
+        ax_real.axis('off')
+
+    plt.tight_layout()
+    plt.savefig(save_path)
+    print(f"Comparaison saved : {save_path}")
+    plt.close()

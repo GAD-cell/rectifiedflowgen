@@ -1,5 +1,5 @@
 from torchcfm.models.unet.unet import UNetModelWrapper
-from utils import compute_fid_score, compute_fid_score_rec, build_memory_bank, build_memory_bank_rec, generate_images, compute_nn_distance
+from utils import compute_fid_score, compute_fid_score_rec, build_memory_bank, build_memory_bank_rec, generate_images, compute_nn_distance, visualize_memorization
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import torch 
@@ -42,11 +42,17 @@ def main(is_rectified=False,path_dataset="reflow_3_dataset.pt"):
     else:
         bank = build_memory_bank(dataloader, dino, device)
         fid = compute_fid_score(dataloader, images_generees, device)
-    
 
-    
     similarity = compute_nn_distance(images_generees, bank, dino, device)
-
+    
+    visualize_memorization(
+        gen_images=images_generees,  
+        memory_bank=bank,           
+        real_dataset=dataloader, 
+        model_dino=dino,           
+        device=device,
+        num_samples=5                
+        )
     print(f"FID: {fid:.2f} | NN Similarity: {similarity:.4f}")
 
 if __name__ == "__main__":
