@@ -23,7 +23,7 @@ def main():
     ).to(device)
 
     try:
-        net_model.load_state_dict(torch.load("model_2rf.pt", map_location=device))
+        net_model.load_state_dict(torch.load("model_1rf.pt", map_location=device))
         print("Modèle 1-RF loaded")
     except FileNotFoundError:
         print("Erreur: 'model_1rf.pt'")
@@ -47,7 +47,7 @@ def main():
             y = y.to(device)
             
             z0 = torch.randn(y.shape[0], 3, 32, 32).to(device)
-            traj = node.trajectory(z0, t_span=torch.linspace(0, 1, 2).to(device))
+            traj = node.trajectory(z0, t_span=torch.linspace(0, 1, 50).to(device))
             z1 = traj[-1] 
             
             reflow_pairs.append((z0.cpu(), z1.cpu(), y.cpu()))

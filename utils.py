@@ -100,7 +100,7 @@ def generate_images(net_model, num=1000, batch_size=100, device="cuda"):
         for _ in range(num_batches):
             z0 = torch.randn(batch_size, 3, 32, 32).to(device)
             
-            t_span = torch.linspace(0, 1, 2).to(device)
+            t_span = torch.linspace(0, 1, 50).to(device)
 
             traj = node.trajectory(z0, t_span=t_span)
             z1 = traj[-1]
@@ -140,7 +140,7 @@ def visualize_memorization(gen_images, memory_bank, real_dataset, model_dino, de
         
         ax_gen = axes[i][0] if actual_num > 1 else axes[0]
         ax_gen.imshow(img_gen)
-        ax_gen.set_title("Générée (2-RF)")
+        ax_gen.set_title("Generated")
         ax_gen.axis('off')
 
         idx_real = best_indices[i].item()
@@ -162,7 +162,7 @@ def visualize_memorization(gen_images, memory_bank, real_dataset, model_dino, de
         score = best_sims[i].item()
         
         color = 'red' if score > 0.95 else 'green'
-        ax_real.set_title(f"Voisin Réel\nSim: {score:.4f}", color=color, fontweight='bold')
+        ax_real.set_title(f"NN \nSim: {score:.4f}", color=color, fontweight='bold')
         ax_real.axis('off')
 
     plt.tight_layout()

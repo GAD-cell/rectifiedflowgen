@@ -25,30 +25,34 @@ def main(is_rectified=False,path_dataset="reflow_3_dataset.pt"):
 
     if is_rectified:
         dataset = ReflowDataset(torch.load(path_dataset))
-        dataloader = DataLoader(dataset, batch_size=128, shuffle=False, drop_last=True, num_workers=2)
     else:
         dataset = datasets.CIFAR10(root="./data", train=True, download=True, transform=transform)
-        dataloader = DataLoader(dataset, batch_size=128, shuffle=True, drop_last=True, num_workers=2)
 
-    net_model.load_state_dict(torch.load("model_2rf.pt", map_location=device))
-
+    net_model.load_state_dict(torch.load("model_1rf.pt", map_location=device))
+    eval_loader = DataLoader(
+        dataset, 
+        batch_size=128, 
+        shuffle=False,  
+        drop_last=False, 
+        num_workers=2
+    )
     dino = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14').to(device).eval()
 
     images_generees = generate_images(net_model, num=1000).to(device)
 
     if is_rectified:
-        bank = build_memory_bank_rec(dataloader, dino, device)
-        fid = compute_fid_score_rec(dataloader, images_generees, device)
+        bank = build_memory_bank_rec(eval_loader, dino, device)
+        fid = compute_fid_score_rec(eval_loader, images_generees, device)
     else:
-        bank = build_memory_bank(dataloader, dino, device)
-        fid = compute_fid_score(dataloader, images_generees, device)
+        bank = build_memory_bank(eval_loader, dino, device)
+        fid = compute_fid_score(eval_loader, images_generees, device)
 
     similarity = compute_nn_distance(images_generees, bank, dino, device)
     
     visualize_memorization(
         gen_images=images_generees,  
         memory_bank=bank,           
-        real_dataset=dataloader, 
+        real_dataset=dataset, 
         model_dino=dino,           
         device=device,
         num_samples=5                
