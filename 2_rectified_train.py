@@ -1,14 +1,17 @@
 import torch
-from torch.utils.data import Dataset, DataLoader
+import os
+from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from torchcfm.models.unet.unet import UNetModelWrapper
 from torchcfm.conditional_flow_matching import TargetConditionalFlowMatcher
 from torchdyn.core import NeuralODE
 from tqdm import tqdm
+from huggingface_hub import hf_hub_download
 from utils import ReflowDataset
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-def main():
+def main(load_hf=True):
     print(f"Reflow pipeline starting on {device}...")
 
     net_model = UNetModelWrapper(
@@ -22,12 +25,27 @@ def main():
         dropout=0.1,
     ).to(device)
 
-    try:
-        net_model.load_state_dict(torch.load("model_1rf.pt", map_location=device))
-        print("Modèle 1-RF loaded")
-    except FileNotFoundError:
-        print("Erreur: 'model_1rf.pt'")
-        return
+    if load_hf:
+        try:
+            print("Downloading best.pt from HF: GAD-cell/Cifar-10-Unet...")
+            checkpoint_path = hf_hub_download(repo_id="GAD-cell/Cifar-10-Unet", filename="best.pt")
+            checkpoint = torch.load(checkpoint_path, map_location=device)
+            
+            if "model" in checkpoint:
+                net_model.load_state_dict(checkpoint["model"])
+            else:
+                net_model.load_state_dict(checkpoint)
+            print("HF Model loaded successfully")
+        except Exception as e:
+            print(f"Error loading HF model: {e}")
+            return
+    else:
+        try:
+            net_model.load_state_dict(torch.load("model_1rf.pt", map_location=device))
+            print("Modèle 1-RF loaded")
+        except FileNotFoundError:
+            print("Erreur: 'model_1rf.pt'")
+            return
 
     transform = transforms.Compose([
         transforms.ToTensor(),
@@ -47,12 +65,12 @@ def main():
             y = y.to(device)
             
             z0 = torch.randn(y.shape[0], 3, 32, 32).to(device)
-            traj = node.trajectory(z0, t_span=torch.linspace(0, 1, 50).to(device))
+            traj = node.trajectory(z0, t_span=torch.linspace(0, 1, 25).to(device))
             z1 = traj[-1] 
             
             reflow_pairs.append((z0.cpu(), z1.cpu(), y.cpu()))
 
-    torch.save(reflow_pairs, "reflow_3_dataset.pt")
+    torch.save(reflow_pairs, "reflow_2_dataset.pt")
 
     reflow_dataset = ReflowDataset(reflow_pairs)
     reflow_loader = DataLoader(reflow_dataset, batch_size=128, shuffle=True, drop_last=True, num_workers=2)
@@ -92,4 +110,4 @@ def main():
     print("2-Rectified Flow saved.")
 
 if __name__ == '__main__':
-    main()
+    main(load_hf=True)

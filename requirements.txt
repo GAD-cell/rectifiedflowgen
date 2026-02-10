@@ -4,3 +4,4 @@ torchvision
 torchdyn
 tqdm
 torch-fidelity
+huggingface_hub
